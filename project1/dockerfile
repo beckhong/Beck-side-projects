@@ -1,0 +1,51 @@
+# install mysql materials in ubuntu16.4
+FROM ubuntu:16.04
+
+RUN mkdir -p /project1
+WORKDIR /project1
+COPY . /project1
+
+# change shell permission
+RUN chmod +x ./run-apps.sh
+
+# add /bin/sh from /bin/bash(s: Symbolic Link, if /bin/bash file is deleted, /bin/sh will not be opened.)
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+
+# https://blog.csdn.net/qq_35904833/article/details/80662683
+ENV DEBIAN_FRONTEND noninteractive
+
+# install apt-utils: https://www.jianshu.com/p/99fd61e6aa29
+# install python3.5
+RUN apt-get update && \
+        apt-get install -y apt-utils software-properties-common vim && \
+        add-apt-repository ppa:fkrull/deadsnakes
+RUN apt-get update -y && apt-get install -y build-essential python3.5 python3.5-dev python3-pip
+
+# install mysql
+# problem: setting password when installing mysql-server
+# reference: https://stackoverflow.com/questions/38356219/mysql-in-docker-frozen-at-root-password-config
+RUN { \
+        echo debconf debconf/frontend select Noninteractive; \
+        echo mysql-community-server mysql-community-server/data-dir \
+            select ''; \
+        echo mysql-community-server mysql-community-server/root-pass \
+            password 'beckhong'; \
+        echo mysql-community-server mysql-community-server/re-root-pass \
+            password 'beckhong'; \
+        echo mysql-community-server mysql-community-server/remove-test-db \
+            select false; \
+    } | debconf-set-selections \
+    && apt-get update \
+    && apt-get install -y mysql-server libmysqlclient-dev
+
+# if not add this, pip3 will upgrade failed.
+ENV PYTHONPATH /project1
+
+# install python packages
+RUN pip3 install --upgrade pip
+RUN pip3 install -r requirements.txt && rm requirements.txt
+
+# connect port 8086
+EXPOSE 8086
+
+ENTRYPOINT ["/bin/bash", "-c", "/project1/run-apps.sh"]
