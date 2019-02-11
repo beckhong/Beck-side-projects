@@ -1,6 +1,6 @@
-# Project1: 利用flask建立第一個自己的MySQL Docker Images
+# Project1: 寫個賣書系統吧！
 
-## Target1: 創建Mysql docker images並透過flask來執行MySQL的CRUD
+## Target1: 利用flask建立第一個自己的MySQL Docker Images
 
 ### 寫一個自己的Dockerfile
 
@@ -13,13 +13,13 @@
 ```
 # requirements.txt
 Flask==1.0.2
+Flask-RESTful==0.3.7
 mysqlclient==1.4.2 # pip3 install之前需安裝libmysqlclient-dev
 ```
 主要目錄取名為project1，架構如下(會持續更新)：
 ```
 ├── apps
 │   ├── app.py
-│   ├── dbconnect.py
 │   └── MySQL
 │       └── book_shop.sql
 ├── dockerfile
@@ -76,7 +76,7 @@ New password for the MySQL "root" user:
 
 
 ### 執行dockerfile
-建立docker image及建立docker container如下：
+建立docker image及建立docker container如下（build image大約10來分鐘左右）：
 ```
 sudo docker build -t project1:mysql .
 sudo docker run -p 8000:8086 -itd project1:mysql
@@ -85,7 +85,6 @@ sudo docker run -p 8000:8086 -itd project1:mysql
 在google chrome分別執行：
 ```
 http://0.0.0.0:8000/
-http://0.0.0.0:8000/test-connection/
 http://0.0.0.0:8000/bookshop/
 ```
 
@@ -93,9 +92,6 @@ http://0.0.0.0:8000/bookshop/
 ```
 # http://0.0.0.0:8000/
 Hello! My name is beck.
-
-# http://0.0.0.0:8000/test-connection/
-Connecting mysql server~
 
 # http://0.0.0.0:8000/bookshop/
 {
@@ -107,19 +103,10 @@ Connecting mysql server~
       "Lahiri", 
       2003, 
       32, 
-      291
+      291, 
+      250
     ], 
-    [
-      2, 
-      "Norse Mythology", 
-      "Neil", 
-      "Gaiman", 
-      2016, 
-      43, 
-      304
-    ], 
-     ...
-     ,
+    ...
     [
       16, 
       "Consider the Lobster", 
@@ -127,7 +114,8 @@ Connecting mysql server~
       "Foster Wallace", 
       2005, 
       92, 
-      343
+      343, 
+      330
     ]
   ], 
   "content": [
@@ -137,12 +125,196 @@ Connecting mysql server~
     "author_lname", 
     "released_year", 
     "stock_quantity", 
-    "pages"
+    "pages", 
+    "price"
   ]
 }
 ```
 
-接下來要透過flask新增MySQL CRUD（C: Create, R: Read, U: Update, D: Delete)的內容。
+其中上面為目前有在書店裡面的書籍。
+
+
+## Target2: 透過網址使用MySQL語法
+
+### MySQL CRUD（C: Create, R: Read, U: Update, D: Delete)
+
+在google chrome的網址可以下MySQL的指令：
+```
+http://0.0.0.0:8000/bookshop/<MySQL command line>
+```
+以下為執行的結果：
+
+* SHOW
+```
+http://0.0.0.0:8000/bookshop/SHOW DATABASES;
+[
+    [
+        "information_schema"
+    ],
+    [
+        "book_shop"
+    ],
+    [
+        "mysql"
+    ],
+    [
+        "performance_schema"
+    ],
+    [
+        "sys"
+    ]
+]
+
+http://0.0.0.0:8000/bookshop/USE sys;
+"Cannot use USE method, only USE book_shop."
+
+http://0.0.0.0:8000/bookshop/SHOW TABLES;
+[
+    [
+        "books"
+    ]
+]
+```
+
+* INSERT
+```
+http://0.0.0.0:8000/bookshop/INSERT INTO books
+                                 (title, author_fname, author_lname, released_year, stock_quantity, pages, price)
+                             VALUES ('10% Happier', 'Dan', 'Harris', 2014, 29, 256, 1111), 
+                                    ('fake_book', 'Freida', 'Harris', 2001, 287, 428, 309),
+                                    ('Lincoln In The Bardo', 'George', 'Saunders', 2017, 1000, 367, 289);
+"INSERT INTO books (title, author_fname, author_lname, released_year, stock_quantity, pages, price) VALUES ('10% Happier', 'Dan', 'Harris', 2014, 29, 256, 1111), ('fake_book', 'Freida', 'Harris', 2001, 287, 428, 309), ('Lincoln In The Bardo', 'George', 'Saunders', 2017, 1000, 367, 289); is successful!"
+```
+
+* SELECT
+```
+# 多了三本書
+http://0.0.0.0:8000/bookshop/SELECT * FROM books;
+or
+http://0.0.0.0:8000/bookshop/
+{
+  "books": [
+    [
+      1, 
+      "The Namesake", 
+      "Jhumpa", 
+      "Lahiri", 
+      2003, 
+      32, 
+      291, 
+      250
+    ], 
+    ... 
+    [
+      17, 
+      "10% Happier", 
+      "Dan", 
+      "Harris", 
+      2014, 
+      29, 
+      256, 
+      1111
+    ], 
+    [
+      18, 
+      "fake_book", 
+      "Freida", 
+      "Harris", 
+      2001, 
+      287, 
+      428, 
+      309
+    ], 
+    [
+      19, 
+      "Lincoln In The Bardo", 
+      "George", 
+      "Saunders", 
+      2017, 
+      1000, 
+      367, 
+      289
+    ]
+  ], 
+  "content": [
+    "book_id", 
+    "title", 
+    "author_fname", 
+    "author_lname", 
+    "released_year", 
+    "stock_quantity", 
+    "pages", 
+    "price"
+  ]
+}
+```
+
+* WHERE condition
+```
+http://0.0.0.0:8000/bookshop/SELECT * FROM books WHERE price > 900;
+[
+    [
+        4,
+        "Interpreter of Maladies",
+        "Jhumpa",
+        "Lahiri",
+        1996,
+        97,
+        198,
+        1999
+    ],
+    [
+        7,
+        "The Amazing Adventures of Kavalier & Clay",
+        "Michael",
+        "Chabon",
+        2000,
+        68,
+        634,
+        1000
+    ],
+    [
+        14,
+        "Cannery Row",
+        "John",
+        "Steinbeck",
+        1945,
+        95,
+        181,
+        10000
+    ],
+    [
+        17,
+        "10% Happier",
+        "Dan",
+        "Harris",
+        2014,
+        29,
+        256,
+        1111
+    ]
+]
+```
+
+* DELETE
+```
+http://0.0.0.0:8000/bookshop/DROP TABLE books;
+[]
+
+http://0.0.0.0:8000/bookshop/
+Table 'book_shop.books' doesn't exist!
+```
+
+最後我們可以reset原本的bookshop:
+```
+http://0.0.0.0:8000/bookshop/reset/
+Reset bookshop is done!
+
+http://0.0.0.0:8000/bookshop/
+# 恢復原本設定
+```
+
+接下來研究如何設定及登入MySQL帳號～
 
 
 * Reference:

@@ -1,9 +1,15 @@
+import MySQLdb
 from flask import Flask, jsonify
-from dbconnect import dbconnect
+from flask_restful import Resource, Api
 
 
 apps = Flask(__name__)
-
+api = Api(apps)
+connect = MySQLdb.connect(host='127.0.0.1',
+                          user='root')
+# connect = MySQLdb.connect(host='127.0.0.1',
+#                           user='root',
+#                           passwd="")
 
 def read_sql_file(sql_path):
     '''
@@ -26,6 +32,31 @@ def read_sql_file(sql_path):
     return command_list
 
 
+def query_result(query, cursor):
+    '''Using MySQL command to get values.
+    '''
+    cursor.execute(query)
+    values = cursor.fetchall()
+    return values
+
+
+class MySQLQuery(Resource):
+    '''MySQL query api. '''
+    def get(self, query):
+        cursor = connect.cursor()
+        cursor.execute("USE book_shop;")
+        if 'USE' in query:
+            return "Cannot use USE method, only USE book_shop."
+        if 'INSERT' in query:
+            cursor.execute(query)
+            connect.commit()
+            return query + " is successful!"
+
+        results = query_result(query, cursor)
+        return results
+
+api.add_resource(MySQLQuery, '/bookshop/<string:query>')
+
 @apps.route('/')
 def home():
     '''
@@ -33,46 +64,48 @@ def home():
     '''
     return 'Hello! My name is beck.'
 
-
-@apps.route('/test-connection/')
-def connectMySQLTest():
-    '''
-    Check mysql server is connected.
-    '''
-    try:
-        cursor, connect = dbconnect()
-        return 'Connecting mysql server~'
-    except Exception as e:
-        return str(e)
-
             
 @apps.route('/bookshop/', methods=['POST', 'GET'])
 def user_bookshop():
     '''
     Insert bookshop data to mysql database and output all books in website.
     '''
+    cursor = connect.cursor()
+    # check database name book_shop is existence
+    databases = query_result("SHOW DATABASES;", cursor)
+    if ("book_shop",) not in databases:
+        # table books must be created
+        query_list = read_sql_file("./apps/MySQL/book_shop.sql")
+        for query in query_list:
+            cursor.execute(query)
+        connect.commit()
+    else:
+        cursor.execute("USE book_shop;")
+
     try:
-        cursor, connect = dbconnect()
-    except Exception as e:
-        return str(e)
+        res = query_result("SELECT * FROM books;", cursor)
+        field_names = [i[0] for i in cursor.description]
+    except MySQLdb._exceptions.ProgrammingError:
+        return "Table 'book_shop.books' doesn't exist!"
 
-    # create book_shop table
+    return jsonify({'content': field_names, 'books': res})
+
+
+@apps.route('/bookshop/reset/', methods=['POST', 'GET'])
+def reset_bookshop():
+    '''
+    Reset bookshop items.
+    '''
+    cursor = connect.cursor()
+    try:
+        cursor.execute("DROP DATABASE book_shop;")
+    except MySQLdb._exceptions.OperationalError:
+        pass
     query_list = read_sql_file("./apps/MySQL/book_shop.sql")
-
     for query in query_list:
         cursor.execute(query)
-        if "SHOW TABLES;" in query:
-            tables = cursor.fetchall()
-            print(tables)
-            if ("books",) in tables:
-                break
-
-    select_query = "SELECT * FROM books;"
-    cursor.execute(select_query)
-    res = cursor.fetchall()
-    field_names = [i[0] for i in cursor.description]
-    
-    return jsonify({'content': field_names, 'books': res})
+    connect.commit()
+    return "Reset bookshop is done!"
 
 
 if __name__ == '__main__':
